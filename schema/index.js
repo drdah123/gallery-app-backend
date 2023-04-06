@@ -53,9 +53,14 @@ const typeDefs = gql`
     login(email: String!, password: String!): AuthData
 
     createPost(postInput: PostInput!): Post!
-    deletePost(postId: ID!): Message!
+    deletePost(postId: ID!, postImage: String!): Message!
     updatePost(postId: ID!, postInput: PostInput!): Post
     likePost(postId: ID!): Message!
+    updatePostWithoutImage(
+      postId: ID!
+      title: String!
+      description: String!
+    ): Post!
     # cancelLike(postId: ID!): Post
   }
 

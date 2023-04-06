@@ -3,11 +3,11 @@ import { combineResolvers } from 'graphql-resolvers';
 import Post from '../models/post.js';
 import User from '../models/user.js';
 import { PubSub } from 'graphql-subscriptions';
-import uploadPicture from '../uploadPicture.js';
-import { createWriteStream } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+
+import { createWriteStream, unlink } from 'fs';
 import { join } from 'path';
 import { resolve } from 'path';
-import multer from 'multer';
 import graphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 const pubsub = new PubSub();
@@ -52,11 +52,12 @@ const postResolver = {
         try {
           const { createReadStream, filename } = await postInput.file;
           const stream = createReadStream();
-          const pathName = join(__dirname, `./uploads/${filename}`);
+          const nameId = uuidv4() + '_' + filename;
+          const pathName = join(__dirname, `./uploads/${nameId}`);
           await stream.pipe(createWriteStream(pathName));
           const post = await Post.create({
             ...postInput,
-            image: filename,
+            image: nameId,
             likesNumber: 0,
             creator: user._id,
           });
@@ -74,11 +75,21 @@ const postResolver = {
     updatePost: combineResolvers(
       isLoggedIn,
       async (_, { postId, postInput }, { user }) => {
-        const post = await Post.findById(postId);
-        const isEqual = isEqualObject(post.creator, user._id);
-        if (!isEqual) throw new Error('لا تملك الصلاحية لهذا المنشور');
+        const post = await Post.findOne({
+          _id: postId,
+          creator: user._id,
+        });
+        if (!post) throw new Error('لا تملك الصلاحية لهذا المنشور');
 
-        post.image = postInput.image;
+        const { createReadStream, filename } = await postInput.file;
+        const nameId = uuidv4() + '_' + filename;
+        const stream = createReadStream();
+        const pathName = join(__dirname, `./uploads/${nameId}`);
+        await stream.pipe(createWriteStream(pathName));
+        const pathDeleted = join(__dirname, `./uploads/${post.image}`);
+
+        unlink(pathDeleted, () => {});
+        post.image = nameId;
         post.title = postInput.title;
         post.description = postInput.description;
 
@@ -87,14 +98,34 @@ const postResolver = {
         return post;
       }
     ),
+    updatePostWithoutImage: combineResolvers(
+      isLoggedIn,
+      async (_, { postId, title, description }, { user }) => {
+        const post = await Post.findOne({
+          _id: postId,
+          creator: user._id,
+        });
+        if (!post) throw new Error('لا تملك الصلاحية لهذا المنشور');
+
+        post.title = title;
+        post.description = description;
+
+        await post.save();
+
+        return post;
+      }
+    ),
     deletePost: combineResolvers(
       isLoggedIn,
-      async (_, { postId }, { user }) => {
+      async (_, { postId, postImage }, { user }) => {
         try {
           await Post.findOneAndDelete({
             _id: postId,
             creator: user._id,
           });
+          const pathDeleted = join(__dirname, `./uploads/${postImage}`);
+
+          unlink(pathDeleted, () => {});
           return { message: 'deleted ' };
         } catch (e) {
           throw new Error(e);

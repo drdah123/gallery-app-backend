@@ -6,7 +6,7 @@ import { generateToken } from '../utils.js';
 const authResolver = {
   Mutation: {
     async login(_, { email, password }) {
-      const user = await User.findOne({ email: email });
+      const user = await User.findOne({ email: email }).lean();
       if (!user) throw new UserInputError('هذا الحساب غير موجود لدينا!!');
 
       const isEqual = await bcrypt.compare(password, user.password);
@@ -17,6 +17,8 @@ const authResolver = {
       return {
         email: user.email,
         name: user.name,
+        _id: user._id,
+        likes: user.likes,
         token: generateToken(user),
       };
     },
