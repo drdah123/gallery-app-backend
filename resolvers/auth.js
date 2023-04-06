@@ -43,6 +43,7 @@ const authResolver = {
         return {
           token: generateToken(user),
           name: user.name,
+          _id: user._id,
           email: user.email,
         };
       } catch (err) {
